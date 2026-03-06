@@ -1,0 +1,62 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage[margin=1in]{geometry}
+\usepackage{url}
+\usepackage{hyperref}
+
+\title{Study of GPU Kernel Optimizations for Scaled Dot-Product Attention}
+\author{Piyush Jadhav}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+Transformer-based architectures have become the foundation of modern deep learning systems, particularly large language models (LLMs) used in natural language processing and generative AI \cite{vaswani2017attention}. At the core of these architectures lies scaled dot-product attention, an operation whose computational complexity grows quadratically with sequence length. As context windows and model sizes increase, attention becomes a major performance bottleneck during inference.
+
+Recent research has shown that attention performance on GPUs is frequently constrained by memory bandwidth and data movement rather than peak floating-point throughput \cite{dao2022flashattention, wang2019characterizing}. IO-aware algorithmic restructuring techniques, such as FlashAttention \cite{dao2022flashattention}, significantly reduce high-bandwidth memory (HBM) transfers and improve efficiency. However, much of the literature proposes new algorithms or large-scale system optimizations, rather than isolating individual kernel-level techniques under controlled experimental settings.
+
+In practice, GPU performance is highly sensitive to implementation details such as memory access patterns, shared memory utilization, kernel launch overhead, and occupancy. While techniques like shared-memory tiling and kernel fusion are commonly applied in high-performance GPU programming, there is limited empirical analysis examining when these optimizations meaningfully improve scaled dot-product attention performance and what tradeoffs they introduce.
+
+This work presents a controlled performance analysis of two GPU kernel optimization techniques—shared-memory tiling and kernel fusion—applied to scaled dot-product attention during Transformer inference. By systematically varying workload configurations and analyzing hardware performance metrics, this study aims to provide insight into when these techniques are beneficial and when their impact diminishes.
+
+\section{Background}
+
+Scaled dot-product attention computes:
+
+\[
+\text{Attention}(Q,K,V) =
+\text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right)V
+\]
+
+where $Q$, $K$, and $V$ are query, key, and value tensors of shape $B \times N \times d$, with batch size $B$, sequence length $N$, and head dimension $d$ \cite{vaswani2017attention}. The computation involves two matrix multiplications and a row-wise softmax operation.
+
+On GPUs, the $QK^T$ multiplication is typically implemented as a batched matrix multiplication, followed by scaling and normalization. The performance of these operations depends heavily on memory hierarchy usage, arithmetic intensity, and thread-level parallelism.
+
+\section{Related Work}
+
+\subsection{Transformer Attention}
+
+The Transformer architecture introduced by Vaswani et al. \cite{vaswani2017attention} replaced recurrent neural networks with self-attention mechanisms. While highly parallelizable, scaled dot-product attention incurs $O(N^2)$ complexity in sequence length, motivating optimization efforts.
+
+\subsection{IO-Aware Attention Optimization}
+
+Dao et al. \cite{dao2022flashattention} demonstrated that attention performance is often memory-bound rather than compute-bound. FlashAttention reduces memory traffic by restructuring computation to maximize on-chip data reuse. FlashAttention-2 further improves parallelism and workload partitioning \cite{dao2023flashattention2}. These works emphasize that memory access patterns are critical to performance.
+
+\subsection{GPU Bottleneck Characterization}
+
+Wang et al. \cite{wang2019characterizing} performed architectural analysis of deep learning workloads on modern GPUs, showing that many operations operate near memory bandwidth limits. Their findings support investigating memory reduction techniques such as shared-memory tiling.
+
+The Roofline model \cite{williams2009roofline} provides a theoretical framework for analyzing whether workloads are compute-bound or memory-bound. By relating arithmetic intensity to hardware ceilings, it enables systematic interpretation of performance measurements.
+
+\subsection{ML Systems Optimization}
+
+Jia et al. \cite{jia2019optimizing} emphasize systematic performance analysis of deep learning computation graphs and the importance of studying optimization tradeoffs rather than isolated improvements. This motivates the controlled experimental design adopted in this work.
+
+\subsection{Gap in Existing Literature}
+
+While prior research establishes that attention is memory-intensive and proposes algorithmic improvements, there is limited controlled empirical evaluation isolating kernel-level techniques such as shared-memory tiling and kernel fusion within standard scaled dot-product attention. This study addresses that gap by analyzing these techniques under varying workload configurations during inference.
