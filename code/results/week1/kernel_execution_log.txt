@@ -1,0 +1,19 @@
+[ 50%] Building CUDA object CMakeFiles/attention_baseline.dir/attention_baseline.cu.o
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z18attn_output_kernelPKfS0_Pfiii' for 'sm_80'
+ptxas info    : Function properties for _Z18attn_output_kernelPKfS0_Pfiii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 32 registers, used 0 barriers, 388 bytes cmem[0]
+ptxas info    : Compile time = 10.974 ms
+ptxas info    : Compiling entry function '_Z14softmax_kernelPfii' for 'sm_80'
+ptxas info    : Function properties for _Z14softmax_kernelPfii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 32 registers, used 0 barriers, 368 bytes cmem[0]
+ptxas info    : Compile time = 20.233 ms
+ptxas info    : Compiling entry function '_Z20qk_dot_scaled_kernelPKfS0_Pfiii' for 'sm_80'
+ptxas info    : Function properties for _Z20qk_dot_scaled_kernelPKfS0_Pfiii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 29 registers, used 0 barriers, 388 bytes cmem[0]
+ptxas info    : Compile time = 8.893 ms
+[100%] Linking CUDA executable attention_baseline
+[100%] Built target attention_baseline
