@@ -1,0 +1,22 @@
+==PROF== Connected to process 167528 (/home/odyn/Downloads/kernel/build/attention_baseline)
+==PROF== Profiling "qk_dot_scaled_kernel" - 0: 0%....50%....100% - 40 passes
+==PROF== Profiling "softmax_kernel" - 1: 0%....50%....100% - 40 passes
+==PROF== Profiling "attn_output_kernel" - 2: 0%....50%....100% - 40 passes
+=== Attention Baseline (Phase 1) ===
+B=1  N=512  d=64  warmup=0  iters=1
+
+Latency:    2910.9128 ms
+Throughput: 0.18 k tokens/sec
+Output NaN/Inf check: PASSED ✅
+
+First 8 output values (for validator):
+  out[0] = -0.028846
+  out[1] = -0.031587
+  out[2] = -0.045571
+  out[3] = 0.036241
+  out[4] = -0.041197
+  out[5] = -0.019445
+  out[6] = 0.036788
+  out[7] = -0.014548
+==PROF== Disconnected from process 167528
+==PROF== Report: /home/odyn/Downloads/kernel/results/week2/ncu_baseline.ncu-rep
