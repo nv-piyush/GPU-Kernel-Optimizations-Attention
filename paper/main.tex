@@ -60,3 +60,134 @@ Jia et al. \cite{jia2019optimizing} emphasize systematic performance analysis of
 \subsection{Gap in Existing Literature}
 
 While prior research establishes that attention is memory-intensive and proposes algorithmic improvements, there is limited controlled empirical evaluation isolating kernel-level techniques such as shared-memory tiling and kernel fusion within standard scaled dot-product attention. This study addresses that gap by analyzing these techniques under varying workload configurations during inference.
+
+\section{Methodology}
+
+\subsection{Attention Formulation}
+
+We study single-head scaled dot-product attention during inference,
+defined as:
+
+\begin{equation}
+    \text{Attention}(Q, K, V) =
+    \text{softmax}\!\left(\frac{QK^{\top}}{\sqrt{d}}\right)V
+    \label{eq:attention}
+\end{equation}
+
+\noindent where $Q, K, V \in \mathbb{R}^{B \times N \times d}$,
+$B$ is the batch size, $N$ is the sequence length, and $d$ is the
+head dimension. The intermediate score matrix
+$S = QK^{\top}/\sqrt{d} \in \mathbb{R}^{B \times N \times N}$
+grows quadratically with sequence length, making memory bandwidth
+the primary performance bottleneck at large $N$.
+
+\subsection{Baseline Implementation}
+
+The baseline kernel decomposes attention into three sequential
+CUDA kernels, all operating exclusively on global memory:
+
+\begin{enumerate}
+    \item \textbf{QK$^{\top}$ with scaling} (\texttt{qk\_dot\_scaled\_kernel}):
+    Computes $S_{b,i,j} = \sum_{k} Q_{b,i,k} \cdot K_{b,j,k} / \sqrt{d}$.
+    Each thread computes one element of $S$. Grid: $(\lceil N/16 \rceil,
+    \lceil N/16 \rceil, B)$, block: $(16, 16)$.
+
+    \item \textbf{Row-wise softmax} (\texttt{softmax\_kernel}):
+    Applies numerically stable softmax over the $j$-dimension of $S$
+    using the max-subtraction trick. Each thread processes one complete
+    row $S_{b,i,:}$. Grid: $(\lceil N/256 \rceil, B)$, block: $(256)$.
+
+    \item \textbf{Weighted sum with V} (\texttt{attn\_output\_kernel}):
+    Computes $\text{out}_{b,i,k} = \sum_{j} S_{b,i,j} \cdot V_{b,j,k}$.
+    Each thread computes one output element. Grid:
+    $(\lceil d/16 \rceil, \lceil N/16 \rceil, B)$, block: $(16, 16)$.
+\end{enumerate}
+
+This implementation is intentionally naive — no shared memory tiling,
+no kernel fusion — to establish a clean performance baseline against
+which optimized variants are compared in Sections~\ref{sec:tiling}
+and~\ref{sec:fusion}.
+
+\subsection{Correctness Validation}
+
+Correctness was verified by comparing CUDA output against a PyTorch
+reference implementation using identical input tensors. Input tensors
+$Q$, $K$, $V$ were generated with uniform random values in $[-1, 1]$
+using fixed seeds (42, 43, 44 respectively) to ensure reproducibility.
+The CUDA binary writes output tensors to raw float32 binary files,
+which are loaded in a validation notebook and compared element-wise
+against the PyTorch reference (\texttt{torch.bmm} + \texttt{F.softmax}).
+
+For the configuration $B{=}1$, $N{=}512$, $d{=}64$:
+
+\begin{itemize}
+    \item Maximum absolute error: $1.34 \times 10^{-7}$
+    \item Mean absolute error: $1.13 \times 10^{-8}$
+    \item Maximum relative error: $1.51 \times 10^{-6}$
+\end{itemize}
+
+These values are at the float32 machine epsilon floor
+($\approx 1.19 \times 10^{-7}$), confirming numerical correctness
+with no algorithmic errors. The tolerance threshold used is
+$\epsilon = 10^{-3}$; all errors fall well below this bound.
+
+
+\section{Experimental Setup}
+\label{sec:setup}
+
+\subsection{Hardware and Software Environment}
+
+Experiments are conducted on a GPU cluster node equipped with an
+NVIDIA \texttt{[TODO: GPU model, e.g. A100 / V100 / RTX 3090]}.
+The CUDA toolkit version is \texttt{[TODO: nvcc --version]},
+compiled with \texttt{-arch=sm\_[TODO]} and \texttt{--use\_fast\_math}.
+The host system runs \texttt{[TODO: OS, e.g. Ubuntu 20.04]} with
+\texttt{[TODO: CPU model]}. PyTorch \texttt{[TODO: version]} is used
+solely for correctness validation and is not involved in any
+performance measurements.
+
+\subsection{Workload Configurations}
+
+We evaluate all combinations of the following parameters:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{Parameter} & \textbf{Values} \\
+\hline
+Batch size $B$       & 1, 4, 16, 32 \\
+Sequence length $N$  & 128, 256, 512, 1024 \\
+Head dimension $d$   & 64, 128 \\
+\hline
+\textbf{Total}       & \textbf{32 configurations} \\
+\hline
+\end{tabular}
+\caption{Parameter sweep for baseline performance characterization.}
+\label{tab:configs}
+\end{table}
+
+Input tensors $Q$, $K$, $V$ are generated synthetically using
+uniform random values with fixed seeds, simulating real attention
+workloads without requiring a dataset.
+
+\subsection{Measurement Protocol}
+
+Each configuration is executed with 5 warmup iterations followed by
+100 timed iterations. Timing is performed using \texttt{cudaEvent}
+start and stop records around the measured iterations, with
+\texttt{cudaEventSynchronize} ensuring all kernels complete before
+the elapsed time is read. The reported latency is the mean over 100
+iterations. Throughput is derived as:
+
+\begin{equation}
+    \text{Throughput (tokens/sec)} = \frac{B \times N}{\text{latency (s)}}
+\end{equation}
+
+All results are written to a CSV file
+(\texttt{results/week2/baseline\_sweep.csv}) with columns:
+\texttt{variant}, \texttt{B}, \texttt{N}, \texttt{d},
+\texttt{latency\_ms}, \texttt{throughput\_k\_tokens\_per\_sec}.
+The same harness will be reused for tiled and fused variants in
+subsequent phases, with the \texttt{variant} field distinguishing
+implementations.
