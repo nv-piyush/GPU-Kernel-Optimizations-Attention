@@ -1,4 +1,20 @@
-
+/*
+ * attention_tiled.cu
+ *
+ * Phase 3 — Shared memory tiled QKᵀ kernel.
+ * Only the QKᵀ computation is tiled; softmax and attn_output
+ * are carried over from the baseline unchanged.
+ *
+ * Tiling strategy:
+ *   Each thread block loads a TILE_SIZE×TILE_SIZE tile of Q rows
+ *   and K rows into shared memory, computes partial dot products,
+ *   then advances to the next tile along the d dimension.
+ *   This amortizes global memory loads across threads in a block,
+ *   reducing DRAM round-trips for the dominant O(N²) score matrix.
+ *
+ * Build:  see CMakeLists.txt
+ * Run:    ./attention_tiled --batch 4 --seq 512 --dim 64
+ */
 
 #include <cuda_runtime.h>
 #include <stdio.h>
@@ -94,7 +110,18 @@ __global__ void softmax_kernel(
     float* __restrict__ S,
     int B, int N
 ) {
+    int b = blockIdx.y;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (b >= B || i >= N) return;
 
+    float* row = S + b * N * N + i * N;
+
+    float mx = row[0];
+    for (int j = 1; j < N; j++) mx = fmaxf(mx, row[j]);
+
+    float s = 0.0f;
+    for (int j = 0; j < N; j++) { row[j] = expf(row[j] - mx); s += row[j]; }
+    for (int j = 0; j < N; j++) row[j] /= s;
 }
 
 /* ─── Kernel 3: Weighted sum with V (unchanged from baseline) ───────────────
@@ -205,7 +232,7 @@ void print_usage(const char* prog) {
 /* ─── main ───────────────────────────────────────────────────────────────── */
 
 int main(int argc, char** argv) {
-    int B = 1, N = 256, d = 64, warmup = 5, iters = 100;
+    int B = 1, N = 512, d = 64, warmup = 5, iters = 100;
     const char* csv_path = NULL;
     const char* dump_dir = NULL;
 
@@ -265,7 +292,7 @@ int main(int argc, char** argv) {
     }
 
     if (dump_dir) {
-        char path[256]; FILE* f;
+        char path[512]; FILE* f;
         size_t n_elem = (size_t)B * N * d;
         #define DUMP(name, arr) \
             snprintf(path, sizeof(path), "%s/%s.bin", dump_dir, name); \
