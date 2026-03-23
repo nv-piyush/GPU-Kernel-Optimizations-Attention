@@ -1,0 +1,41 @@
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/odyn/Downloads/kernel/build
+[ 25%] Building CUDA object CMakeFiles/attention_baseline.dir/attention_baseline.cu.o
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z18attn_output_kernelPKfS0_Pfiii' for 'sm_120'
+ptxas info    : Function properties for _Z18attn_output_kernelPKfS0_Pfiii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 42 registers, used 0 barriers
+ptxas info    : Compile time = 6.515 ms
+ptxas info    : Compiling entry function '_Z14softmax_kernelPfii' for 'sm_120'
+ptxas info    : Function properties for _Z14softmax_kernelPfii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 0 barriers
+ptxas info    : Compile time = 10.065 ms
+ptxas info    : Compiling entry function '_Z20qk_dot_scaled_kernelPKfS0_Pfiii' for 'sm_120'
+ptxas info    : Function properties for _Z20qk_dot_scaled_kernelPKfS0_Pfiii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 32 registers, used 0 barriers
+ptxas info    : Compile time = 3.977 ms
+[ 50%] Linking CUDA executable attention_baseline
+[ 50%] Built target attention_baseline
+[ 75%] Building CUDA object CMakeFiles/attention_tiled.dir/attention_tiled.cu.o
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z18attn_output_kernelPKfS0_Pfiii' for 'sm_120'
+ptxas info    : Function properties for _Z18attn_output_kernelPKfS0_Pfiii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 42 registers, used 0 barriers
+ptxas info    : Compile time = 6.522 ms
+ptxas info    : Compiling entry function '_Z14softmax_kernelPfii' for 'sm_120'
+ptxas info    : Function properties for _Z14softmax_kernelPfii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 0 barriers
+ptxas info    : Compile time = 10.092 ms
+ptxas info    : Compiling entry function '_Z19qk_dot_tiled_kernelPKfS0_Pfiii' for 'sm_120'
+ptxas info    : Function properties for _Z19qk_dot_tiled_kernelPKfS0_Pfiii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 2048 bytes smem
+ptxas info    : Compile time = 10.660 ms
+[100%] Linking CUDA executable attention_tiled
+[100%] Built target attention_tiled
