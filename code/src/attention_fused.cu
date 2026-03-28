@@ -108,6 +108,97 @@ __global__ void softmax_fixed_grid_kernel(
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * VARIANT B KERNELS
+ * Fused QK + Softmax kernel
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Variant B: Fused QK + Softmax ─────────────────────────────────────────
+ *
+ * Each thread block handles one output row i of one batch b.
+ * The block computes the full row of dot products S[b,i,:] in shared memory,
+ * applies softmax in-place in shared memory, then writes the result to S.
+ *
+ * This eliminates the DRAM round-trip of the full [B,N,N] score matrix
+ * between the QK kernel and the softmax kernel:
+ *   - Baseline/tiled: QK writes S to DRAM → softmax reads S from DRAM
+ *   - Fused: S[b,i,:] stays in shared memory throughout
+ *
+ * At N=1024, d=64, B=32: score matrix = 32 × 1024 × 1024 × 4B = 128 MB
+ * Eliminating this write+read saves significant DRAM bandwidth.
+ *
+ * Grid:  (N, B)        — one block per (row, batch)
+ * Block: (BLOCK_N)     — threads collaborate on one row
+ *
+ * Shared memory: BLOCK_N floats for the score row
+ */
+#define FUSED_BLOCK 256   /* threads per block; must be >= N or use loops */
+
+__global__ void qk_softmax_fused_kernel(
+    const float* __restrict__ Q,   // [B, N, d]
+    const float* __restrict__ K,   // [B, N, d]
+    float*       __restrict__ S,   // [B, N, N] output (softmax weights)
+    int B, int N, int d
+) {
+    extern __shared__ float smem[];  /* dynamic: N floats per block */
+
+    int b = blockIdx.y;
+    int i = blockIdx.x;             /* this block owns row i of batch b */
+
+    if (b >= B || i >= N) return;
+
+    const float* q_row = Q + b * N * d + i * d;
+
+    /* ── Step 1: compute all dot products for row i ── */
+    /* Each thread computes a strided subset of j values */
+    for (int j = threadIdx.x; j < N; j += blockDim.x) {
+        const float* k_row = K + b * N * d + j * d;
+        float acc = 0.f;
+        for (int k = 0; k < d; k++) acc += q_row[k] * k_row[k];
+        smem[j] = acc / sqrtf((float)d);
+    }
+    __syncthreads();
+
+    /* ── Step 2: parallel row max (tree reduction) ── */
+    __shared__ float smax[FUSED_BLOCK];
+    float local_max = -1e38f;
+    for (int j = threadIdx.x; j < N; j += blockDim.x)
+        local_max = fmaxf(local_max, smem[j]);
+    smax[threadIdx.x] = local_max;
+    __syncthreads();
+
+    /* reduce within block */
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride)
+            smax[threadIdx.x] = fmaxf(smax[threadIdx.x],
+                                       smax[threadIdx.x + stride]);
+        __syncthreads();
+    }
+    float row_max = smax[0];
+
+    /* ── Step 3: exp(x - max) and parallel sum ── */
+    __shared__ float ssum[FUSED_BLOCK];
+    float local_sum = 0.f;
+    for (int j = threadIdx.x; j < N; j += blockDim.x) {
+        smem[j] = expf(smem[j] - row_max);
+        local_sum += smem[j];
+    }
+    ssum[threadIdx.x] = local_sum;
+    __syncthreads();
+
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride)
+            ssum[threadIdx.x] += ssum[threadIdx.x + stride];
+        __syncthreads();
+    }
+    float row_sum = ssum[0];
+
+    /* ── Step 4: normalize and write to global memory ── */
+    float* s_row = S + b * N * N + i * N;
+    for (int j = threadIdx.x; j < N; j += blockDim.x)
+        s_row[j] = smem[j] / row_sum;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * SHARED: attn_output kernel (unchanged from baseline)
  * ═══════════════════════════════════════════════════════════════════════════ */
 
