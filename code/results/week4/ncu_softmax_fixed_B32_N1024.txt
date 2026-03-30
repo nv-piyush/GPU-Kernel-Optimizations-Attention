@@ -1,0 +1,531 @@
+==PROF== Connected to process 355974 (/home/odyn/kernel/build/attention_fused)
+==PROF== Profiling "qk_dot_tiled_kernel" - 0: 0%....50%....100% - 41 passes
+==PROF== Profiling "softmax_fixed_grid_kernel" - 1: 0%....50%....100% - 40 passes
+==PROF== Profiling "attn_output_kernel" - 2: 0%....50%....100% - 40 passes
+=== Attention Fused (Phase 4) | variant=softmax_fixed ===
+B=32  N=1024  d=64  warmup=0  iters=1
+
+Latency:    5965.3672 ms
+Throughput: 5.49 k tokens/sec
+Output NaN/Inf check: PASSED ✅
+
+First 8 output values:
+  out[0] = -0.012624
+  out[1] = -0.031212
+  out[2] = -0.037819
+  out[3] = -0.008230
+  out[4] = -0.012111
+  out[5] = -0.001539
+  out[6] = 0.007358
+  out[7] = -0.001645
+==PROF== Disconnected from process 355974
+[355974] attention_fused@127.0.0.1
+  attn_output_kernel(const float *, const float *, float *, int, int, int) (4, 64, 32)x(16, 16, 1), Device 0, CC 12.0, Invocations 1
+    Section: Compute Workload Analysis
+    -------------------- ----------- ------- ------- -------
+    Metric Name          Metric Unit Minimum Maximum Average
+    -------------------- ----------- ------- ------- -------
+    Executed Ipc Active   inst/cycle    1.03    1.03    1.03
+    Executed Ipc Elapsed  inst/cycle    1.03    1.03    1.03
+    Issue Slots Busy               %   25.77   25.77   25.77
+    Issued Ipc Active     inst/cycle    1.03    1.03    1.03
+    SM Busy                        %   31.57   31.57   31.57
+    -------------------- ----------- ------- ------- -------
+
+    Section: GPU Speed Of Light Throughput
+    ----------------------- ----------- ------------ ------------ ------------
+    Metric Name             Metric Unit      Minimum      Maximum      Average
+    ----------------------- ----------- ------------ ------------ ------------
+    DRAM Frequency                  Ghz        13.79        13.79        13.79
+    SM Frequency                    Ghz         2.57         2.57         2.57
+    Elapsed Cycles                cycle 7,915,673.00 7,915,673.00 7,915,673.00
+    Memory Throughput                 %        94.39        94.39        94.39
+    DRAM Throughput                   %        11.08        11.08        11.08
+    Duration                         ms         3.08         3.08         3.08
+    L1/TEX Cache Throughput           %        94.65        94.65        94.65
+    L2 Cache Throughput               %        22.32        22.32        22.32
+    SM Active Cycles              cycle 7,889,595.56 7,889,595.56 7,889,595.56
+    Compute (SM) Throughput           %        94.39        94.39        94.39
+    ----------------------- ----------- ------------ ------------ ------------
+
+    Section: GPU and Memory Workload Distribution
+    -------------------------- ----------- ---------------- ---------------- ----------------
+    Metric Name                Metric Unit          Minimum          Maximum          Average
+    -------------------------- ----------- ---------------- ---------------- ----------------
+    Average DRAM Active Cycles       cycle     4,707,960.00     4,707,960.00     4,707,960.00
+    Total DRAM Elapsed Cycles        cycle   170,012,672.00   170,012,672.00   170,012,672.00
+    Average L1 Active Cycles         cycle     7,889,595.56     7,889,595.56     7,889,595.56
+    Total L1 Elapsed Cycles          cycle   284,814,300.00   284,814,300.00   284,814,300.00
+    Average L2 Active Cycles         cycle     7,025,994.94     7,025,994.94     7,025,994.94
+    Total L2 Elapsed Cycles          cycle   112,692,944.00   112,692,944.00   112,692,944.00
+    Average SM Active Cycles         cycle     7,889,595.56     7,889,595.56     7,889,595.56
+    Total SM Elapsed Cycles          cycle   284,814,300.00   284,814,300.00   284,814,300.00
+    Average SMSP Active Cycles       cycle     7,885,483.05     7,885,483.05     7,885,483.05
+    Total SMSP Elapsed Cycles        cycle 1,139,257,200.00 1,139,257,200.00 1,139,257,200.00
+    -------------------------- ----------- ---------------- ---------------- ----------------
+
+    Section: Instruction Statistics
+    ---------------------------------------- ----------- -------------- -------------- --------------
+    Metric Name                              Metric Unit        Minimum        Maximum        Average
+    ---------------------------------------- ----------- -------------- -------------- --------------
+    Local Memory Spilling Requests                  byte           0.00           0.00           0.00
+    Shared Memory Spilling Requests                 byte           0.00           0.00           0.00
+    Avg. Executed Instructions Per Scheduler        inst   2,038,442.67   2,038,442.67   2,038,442.67
+    Executed Instructions                           inst 293,535,744.00 293,535,744.00 293,535,744.00
+    Avg. Issued Instructions Per Scheduler          inst   2,038,442.67   2,038,442.67   2,038,442.67
+    Issued Instructions                             inst 293,535,744.00 293,535,744.00 293,535,744.00
+    ---------------------------------------- ----------- -------------- -------------- --------------
+
+    Section: Launch Statistics
+    -------------------------------- --------------- ------------ ------------ ------------
+    Metric Name                          Metric Unit      Minimum      Maximum      Average
+    -------------------------------- --------------- ------------ ------------ ------------
+    Block Size                                             256.00       256.00       256.00
+    Cluster Size                                             0.00         0.00         0.00
+    Grid Size                                            8,192.00     8,192.00     8,192.00
+    Preferred Cluster Size                                   0.00         0.00         0.00
+    Registers Per Thread             register/thread        40.00        40.00        40.00
+    Shared Memory Configuration Size           Kbyte        16.38        16.38        16.38
+    Driver Shared Memory Per Block       Kbyte/block         1.02         1.02         1.02
+    Dynamic Shared Memory Per Block       byte/block         0.00         0.00         0.00
+    Static Shared Memory Per Block        byte/block         0.00         0.00         0.00
+    # SMs                                         SM        36.00        36.00        36.00
+    Stack Size                                           1,024.00     1,024.00     1,024.00
+    Threads                                   thread 2,097,152.00 2,097,152.00 2,097,152.00
+    # TPCs                                                  18.00        18.00        18.00
+    Uses Green Context                                       0.00         0.00         0.00
+    Waves Per SM                                            37.93        37.93        37.93
+    -------------------------------- --------------- ------------ ------------ ------------
+
+    Section: Memory Workload Analysis
+    --------------------------------------- ----------- ------- ------- -------
+    Metric Name                             Metric Unit Minimum Maximum Average
+    --------------------------------------- ----------- ------- ------- -------
+    Local Memory Spilling Requests                         0.00    0.00    0.00
+    Local Memory Spilling Request Overhead            %    0.00    0.00    0.00
+    L2 Sector Promotion Misses                        %    0.00    0.00    0.00
+    Shared Memory Spilling Requests                        0.00    0.00    0.00
+    Shared Memory Spilling Request Overhead           %    0.00    0.00    0.00
+    Memory Throughput                           Gbyte/s   48.87   48.87   48.87
+    Mem Busy                                          %   70.83   70.83   70.83
+    Max Bandwidth                                     %   94.39   94.39   94.39
+    L1/TEX Hit Rate                                   %   87.58   87.58   87.58
+    L2 Persisting Size                            Mbyte    6.29    6.29    6.29
+    L2 Compression Success Rate                       %    0.00    0.00    0.00
+    L2 Compression Ratio                                   0.00    0.00    0.00
+    L2 Compression Input Sectors                 sector    0.00    0.00    0.00
+    L2 Hit Rate                                       %   86.16   86.16   86.16
+    Mem Pipes Busy                                    %   94.39   94.39   94.39
+    --------------------------------------- ----------- ------- ------- -------
+
+    Section: Occupancy
+    ------------------------------- ----------- ------- ------- -------
+    Metric Name                     Metric Unit Minimum Maximum Average
+    ------------------------------- ----------- ------- ------- -------
+    Max Active Clusters                 cluster    0.00    0.00    0.00
+    Max Cluster Size                      block    8.00    8.00    8.00
+    Overall GPU Occupancy                     %    0.00    0.00    0.00
+    Cluster Occupancy                         %    0.00    0.00    0.00
+    Block Limit Barriers                  block   24.00   24.00   24.00
+    Block Limit SM                        block   24.00   24.00   24.00
+    Block Limit Registers                 block    6.00    6.00    6.00
+    Block Limit Shared Mem                block   16.00   16.00   16.00
+    Block Limit Warps                     block    6.00    6.00    6.00
+    Theoretical Active Warps per SM        warp   48.00   48.00   48.00
+    Theoretical Occupancy                     %  100.00  100.00  100.00
+    Achieved Occupancy                        %   98.88   98.88   98.88
+    Achieved Active Warps Per SM           warp   47.46   47.46   47.46
+    ------------------------------- ----------- ------- ------- -------
+
+    Section: PM Sampling
+    ------------------------- ----------- ------- ------- -------
+    Metric Name               Metric Unit Minimum Maximum Average
+    ------------------------- ----------- ------- ------- -------
+    Maximum Buffer Size             Mbyte   16.58   16.58   16.58
+    Maximum Sampling Interval          us    3.00    3.00    3.00
+    # Pass Groups                            2.00    2.00    2.00
+    ------------------------- ----------- ------- ------- -------
+
+    Section: Scheduler Statistics
+    ---------------------------- ----------- ------- ------- -------
+    Metric Name                  Metric Unit Minimum Maximum Average
+    ---------------------------- ----------- ------- ------- -------
+    One or More Eligible                   %   25.85   25.85   25.85
+    Issued Warp Per Scheduler                   0.26    0.26    0.26
+    No Eligible                            %   74.15   74.15   74.15
+    Active Warps Per Scheduler          warp   11.87   11.87   11.87
+    Eligible Warps Per Scheduler        warp    1.34    1.34    1.34
+    ---------------------------- ----------- ------- ------- -------
+
+    Section: Source Counters
+    ------------------------- ----------- ------------ ------------ ------------
+    Metric Name               Metric Unit      Minimum      Maximum      Average
+    ------------------------- ----------- ------------ ------------ ------------
+    Branch Instructions Ratio           %         0.02         0.02         0.02
+    Branch Instructions              inst 4,784,128.00 4,784,128.00 4,784,128.00
+    Branch Efficiency                   %       100.00       100.00       100.00
+    Avg. Divergent Branches      branches         0.00         0.00         0.00
+    ------------------------- ----------- ------------ ------------ ------------
+
+    Section: Tile Statistics
+    ------------------------------- ----------- -------- -------- --------
+    Metric Name                     Metric Unit  Minimum  Maximum  Average
+    ------------------------------- ----------- -------- -------- --------
+    Block Size (Chosen by Compiler)               256.00   256.00   256.00
+    Cluster Size                                    0.00     0.00     0.00
+    #Thread Blocks Launched                     8,192.00 8,192.00 8,192.00
+    #Tile Blocks Specified                      8,192.00 8,192.00 8,192.00
+    Blocks as Clusters                              0.00     0.00     0.00
+    ------------------------------- ----------- -------- -------- --------
+
+    Section: Warp State Statistics
+    ---------------------------------------- ----------- ------- ------- -------
+    Metric Name                              Metric Unit Minimum Maximum Average
+    ---------------------------------------- ----------- ------- ------- -------
+    Warp Cycles Per Issued Instruction             cycle   45.92   45.92   45.92
+    Warp Cycles Per Executed Instruction           cycle   45.92   45.92   45.92
+    Avg. Active Threads Per Warp                           32.00   32.00   32.00
+    Avg. Not Predicated Off Threads Per Warp               31.96   31.96   31.96
+    ---------------------------------------- ----------- ------- ------- -------
+
+  qk_dot_tiled_kernel(const float *, const float *, float *, int, int, int) (64, 64, 32)x(16, 16, 1), Device 0, CC 12.0, Invocations 1
+    Section: Compute Workload Analysis
+    -------------------- ----------- ------- ------- -------
+    Metric Name          Metric Unit Minimum Maximum Average
+    -------------------- ----------- ------- ------- -------
+    Executed Ipc Active   inst/cycle    0.67    0.67    0.67
+    Executed Ipc Elapsed  inst/cycle    0.67    0.67    0.67
+    Issue Slots Busy               %   16.74   16.74   16.74
+    Issued Ipc Active     inst/cycle    0.67    0.67    0.67
+    SM Busy                        %   16.74   16.74   16.74
+    -------------------- ----------- ------- ------- -------
+
+    Section: GPU Speed Of Light Throughput
+    ----------------------- ----------- ------------ ------------ ------------
+    Metric Name             Metric Unit      Minimum      Maximum      Average
+    ----------------------- ----------- ------------ ------------ ------------
+    DRAM Frequency                  Ghz        13.79        13.79        13.79
+    SM Frequency                    Ghz         2.57         2.57         2.57
+    Elapsed Cycles                cycle 9,748,058.00 9,748,058.00 9,748,058.00
+    Memory Throughput                 %        95.46        95.46        95.46
+    DRAM Throughput                   %         8.92         8.92         8.92
+    Duration                         ms         3.79         3.79         3.79
+    L1/TEX Cache Throughput           %        95.51        95.51        95.51
+    L2 Cache Throughput               %        12.18        12.18        12.18
+    SM Active Cycles              cycle 9,737,498.72 9,737,498.72 9,737,498.72
+    Compute (SM) Throughput           %        30.50        30.50        30.50
+    ----------------------- ----------- ------------ ------------ ------------
+
+    Section: GPU and Memory Workload Distribution
+    -------------------------- ----------- ---------------- ---------------- ----------------
+    Metric Name                Metric Unit          Minimum          Maximum          Average
+    -------------------------- ----------- ---------------- ---------------- ----------------
+    Average DRAM Active Cycles       cycle     4,663,064.00     4,663,064.00     4,663,064.00
+    Total DRAM Elapsed Cycles        cycle   209,059,840.00   209,059,840.00   209,059,840.00
+    Average L1 Active Cycles         cycle     9,737,498.72     9,737,498.72     9,737,498.72
+    Total L1 Elapsed Cycles          cycle   350,718,408.00   350,718,408.00   350,718,408.00
+    Average L2 Active Cycles         cycle     8,298,112.12     8,298,112.12     8,298,112.12
+    Total L2 Elapsed Cycles          cycle   138,624,480.00   138,624,480.00   138,624,480.00
+    Average SM Active Cycles         cycle     9,737,498.72     9,737,498.72     9,737,498.72
+    Total SM Elapsed Cycles          cycle   350,718,408.00   350,718,408.00   350,718,408.00
+    Average SMSP Active Cycles       cycle     9,736,929.81     9,736,929.81     9,736,929.81
+    Total SMSP Elapsed Cycles        cycle 1,402,873,632.00 1,402,873,632.00 1,402,873,632.00
+    -------------------------- ----------- ---------------- ---------------- ----------------
+
+    Section: Instruction Statistics
+    ---------------------------------------- ----------- -------------- -------------- --------------
+    Metric Name                              Metric Unit        Minimum        Maximum        Average
+    ---------------------------------------- ----------- -------------- -------------- --------------
+    Local Memory Spilling Requests                  byte           0.00           0.00           0.00
+    Shared Memory Spilling Requests                 byte           0.00           0.00           0.00
+    Avg. Executed Instructions Per Scheduler        inst   1,631,118.22   1,631,118.22   1,631,118.22
+    Executed Instructions                           inst 234,881,024.00 234,881,024.00 234,881,024.00
+    Avg. Issued Instructions Per Scheduler          inst   1,631,118.22   1,631,118.22   1,631,118.22
+    Issued Instructions                             inst 234,881,024.00 234,881,024.00 234,881,024.00
+    ---------------------------------------- ----------- -------------- -------------- --------------
+
+    Section: Launch Statistics
+    -------------------------------- --------------- ------------- ------------- -------------
+    Metric Name                          Metric Unit       Minimum       Maximum       Average
+    -------------------------------- --------------- ------------- ------------- -------------
+    Block Size                                              256.00        256.00        256.00
+    Cluster Size                                              0.00          0.00          0.00
+    Grid Size                                           131,072.00    131,072.00    131,072.00
+    Preferred Cluster Size                                    0.00          0.00          0.00
+    Registers Per Thread             register/thread         40.00         40.00         40.00
+    Shared Memory Configuration Size           Kbyte         65.54         65.54         65.54
+    Driver Shared Memory Per Block       Kbyte/block          1.02          1.02          1.02
+    Dynamic Shared Memory Per Block       byte/block          0.00          0.00          0.00
+    Static Shared Memory Per Block       Kbyte/block          2.05          2.05          2.05
+    # SMs                                         SM         36.00         36.00         36.00
+    Stack Size                                            1,024.00      1,024.00      1,024.00
+    Threads                                   thread 33,554,432.00 33,554,432.00 33,554,432.00
+    # TPCs                                                   18.00         18.00         18.00
+    Uses Green Context                                        0.00          0.00          0.00
+    Waves Per SM                                            606.81        606.81        606.81
+    -------------------------------- --------------- ------------- ------------- -------------
+
+    Section: Memory Workload Analysis
+    --------------------------------------- ----------- ------- ------- -------
+    Metric Name                             Metric Unit Minimum Maximum Average
+    --------------------------------------- ----------- ------- ------- -------
+    Local Memory Spilling Requests                         0.00    0.00    0.00
+    Local Memory Spilling Request Overhead            %    0.00    0.00    0.00
+    L2 Sector Promotion Misses                        %    0.00    0.00    0.00
+    Shared Memory Spilling Requests                        0.00    0.00    0.00
+    Shared Memory Spilling Request Overhead           %    0.00    0.00    0.00
+    Memory Throughput                           Gbyte/s   39.37   39.37   39.37
+    Mem Busy                                          %   95.46   95.46   95.46
+    Max Bandwidth                                     %   31.81   31.81   31.81
+    L1/TEX Hit Rate                                   %   21.71   21.71   21.71
+    L2 Persisting Size                            Mbyte    6.29    6.29    6.29
+    L2 Compression Success Rate                       %    0.00    0.00    0.00
+    L2 Compression Ratio                                   0.00    0.00    0.00
+    L2 Compression Input Sectors                 sector    0.00    0.00    0.00
+    L2 Hit Rate                                       %   90.31   90.31   90.31
+    Mem Pipes Busy                                    %   30.50   30.50   30.50
+    --------------------------------------- ----------- ------- ------- -------
+
+    Section: Occupancy
+    ------------------------------- ----------- ------- ------- -------
+    Metric Name                     Metric Unit Minimum Maximum Average
+    ------------------------------- ----------- ------- ------- -------
+    Max Active Clusters                 cluster    0.00    0.00    0.00
+    Max Cluster Size                      block    8.00    8.00    8.00
+    Overall GPU Occupancy                     %    0.00    0.00    0.00
+    Cluster Occupancy                         %    0.00    0.00    0.00
+    Block Limit Barriers                  block   24.00   24.00   24.00
+    Block Limit SM                        block   24.00   24.00   24.00
+    Block Limit Registers                 block    6.00    6.00    6.00
+    Block Limit Shared Mem                block   21.00   21.00   21.00
+    Block Limit Warps                     block    6.00    6.00    6.00
+    Theoretical Active Warps per SM        warp   48.00   48.00   48.00
+    Theoretical Occupancy                     %  100.00  100.00  100.00
+    Achieved Occupancy                        %   97.94   97.94   97.94
+    Achieved Active Warps Per SM           warp   47.01   47.01   47.01
+    ------------------------------- ----------- ------- ------- -------
+
+    Section: PM Sampling
+    ------------------------- ----------- ------- ------- -------
+    Metric Name               Metric Unit Minimum Maximum Average
+    ------------------------- ----------- ------- ------- -------
+    Maximum Buffer Size             Mbyte   33.16   33.16   33.16
+    Maximum Sampling Interval          us    3.00    3.00    3.00
+    # Pass Groups                            2.00    2.00    2.00
+    ------------------------- ----------- ------- ------- -------
+
+    Section: Scheduler Statistics
+    ---------------------------- ----------- ------- ------- -------
+    Metric Name                  Metric Unit Minimum Maximum Average
+    ---------------------------- ----------- ------- ------- -------
+    One or More Eligible                   %   16.75   16.75   16.75
+    Issued Warp Per Scheduler                   0.17    0.17    0.17
+    No Eligible                            %   83.25   83.25   83.25
+    Active Warps Per Scheduler          warp   11.74   11.74   11.74
+    Eligible Warps Per Scheduler        warp    0.52    0.52    0.52
+    ---------------------------- ----------- ------- ------- -------
+
+    Section: Source Counters
+    ------------------------- ----------- ------------ ------------ ------------
+    Metric Name               Metric Unit      Minimum      Maximum      Average
+    ------------------------- ----------- ------------ ------------ ------------
+    Branch Instructions Ratio           %         0.03         0.03         0.03
+    Branch Instructions              inst 7,340,032.00 7,340,032.00 7,340,032.00
+    Branch Efficiency                   %       100.00       100.00       100.00
+    Avg. Divergent Branches      branches         0.00         0.00         0.00
+    ------------------------- ----------- ------------ ------------ ------------
+
+    Section: Tile Statistics
+    ------------------------------- ----------- ---------- ---------- ----------
+    Metric Name                     Metric Unit    Minimum    Maximum    Average
+    ------------------------------- ----------- ---------- ---------- ----------
+    Block Size (Chosen by Compiler)                 256.00     256.00     256.00
+    Cluster Size                                      0.00       0.00       0.00
+    #Thread Blocks Launched                     131,072.00 131,072.00 131,072.00
+    #Tile Blocks Specified                      131,072.00 131,072.00 131,072.00
+    Blocks as Clusters                                0.00       0.00       0.00
+    ------------------------------- ----------- ---------- ---------- ----------
+
+    Section: Warp State Statistics
+    ---------------------------------------- ----------- ------- ------- -------
+    Metric Name                              Metric Unit Minimum Maximum Average
+    ---------------------------------------- ----------- ------- ------- -------
+    Warp Cycles Per Issued Instruction             cycle   70.07   70.07   70.07
+    Warp Cycles Per Executed Instruction           cycle   70.07   70.07   70.07
+    Avg. Active Threads Per Warp                           32.00   32.00   32.00
+    Avg. Not Predicated Off Threads Per Warp               31.86   31.86   31.86
+    ---------------------------------------- ----------- ------- ------- -------
+
+  softmax_fixed_grid_kernel(float *, int, int) (1024, 32, 1)x(1, 1, 1), Device 0, CC 12.0, Invocations 1
+    Section: Compute Workload Analysis
+    -------------------- ----------- ------- ------- -------
+    Metric Name          Metric Unit Minimum Maximum Average
+    -------------------- ----------- ------- ------- -------
+    Executed Ipc Active   inst/cycle    1.11    1.11    1.11
+    Executed Ipc Elapsed  inst/cycle    1.11    1.11    1.11
+    Issue Slots Busy               %   27.72   27.72   27.72
+    Issued Ipc Active     inst/cycle    1.11    1.11    1.11
+    SM Busy                        %   30.73   30.73   30.73
+    -------------------- ----------- ------- ------- -------
+
+    Section: GPU Speed Of Light Throughput
+    ----------------------- ----------- ------------- ------------- -------------
+    Metric Name             Metric Unit       Minimum       Maximum       Average
+    ----------------------- ----------- ------------- ------------- -------------
+    DRAM Frequency                  Ghz         13.79         13.79         13.79
+    SM Frequency                    Ghz          2.57          2.57          2.57
+    Elapsed Cycles                cycle 10,126,873.00 10,126,873.00 10,126,873.00
+    Memory Throughput                 %         92.09         92.09         92.09
+    DRAM Throughput                   %         14.82         14.82         14.82
+    Duration                         ms          3.94          3.94          3.94
+    L1/TEX Cache Throughput           %         92.23         92.23         92.23
+    L2 Cache Throughput               %         23.83         23.83         23.83
+    SM Active Cycles              cycle 10,106,027.78 10,106,027.78 10,106,027.78
+    Compute (SM) Throughput           %         92.09         92.09         92.09
+    ----------------------- ----------- ------------- ------------- -------------
+
+    Section: GPU and Memory Workload Distribution
+    -------------------------- ----------- ---------------- ---------------- ----------------
+    Metric Name                Metric Unit          Minimum          Maximum          Average
+    -------------------------- ----------- ---------------- ---------------- ----------------
+    Average DRAM Active Cycles       cycle     8,044,376.00     8,044,376.00     8,044,376.00
+    Total DRAM Elapsed Cycles        cycle   217,185,280.00   217,185,280.00   217,185,280.00
+    Average L1 Active Cycles         cycle    10,106,027.78    10,106,027.78    10,106,027.78
+    Total L1 Elapsed Cycles          cycle   364,362,240.00   364,362,240.00   364,362,240.00
+    Average L2 Active Cycles         cycle     8,985,083.94     8,985,083.94     8,985,083.94
+    Total L2 Elapsed Cycles          cycle   144,020,560.00   144,020,560.00   144,020,560.00
+    Average SM Active Cycles         cycle    10,106,027.78    10,106,027.78    10,106,027.78
+    Total SM Elapsed Cycles          cycle   364,362,240.00   364,362,240.00   364,362,240.00
+    Average SMSP Active Cycles       cycle    10,094,659.08    10,094,659.08    10,094,659.08
+    Total SMSP Elapsed Cycles        cycle 1,457,448,960.00 1,457,448,960.00 1,457,448,960.00
+    -------------------------- ----------- ---------------- ---------------- ----------------
+
+    Section: Instruction Statistics
+    ---------------------------------------- ----------- -------------- -------------- --------------
+    Metric Name                              Metric Unit        Minimum        Maximum        Average
+    ---------------------------------------- ----------- -------------- -------------- --------------
+    Local Memory Spilling Requests                  byte           0.00           0.00           0.00
+    Shared Memory Spilling Requests                 byte           0.00           0.00           0.00
+    Avg. Executed Instructions Per Scheduler        inst   2,805,987.56   2,805,987.56   2,805,987.56
+    Executed Instructions                           inst 404,062,208.00 404,062,208.00 404,062,208.00
+    Avg. Issued Instructions Per Scheduler          inst   2,805,987.56   2,805,987.56   2,805,987.56
+    Issued Instructions                             inst 404,062,208.00 404,062,208.00 404,062,208.00
+    ---------------------------------------- ----------- -------------- -------------- --------------
+
+    Section: Launch Statistics
+    -------------------------------- --------------- --------- --------- ---------
+    Metric Name                          Metric Unit   Minimum   Maximum   Average
+    -------------------------------- --------------- --------- --------- ---------
+    Block Size                                            1.00      1.00      1.00
+    Cluster Size                                          0.00      0.00      0.00
+    Grid Size                                        32,768.00 32,768.00 32,768.00
+    Preferred Cluster Size                                0.00      0.00      0.00
+    Registers Per Thread             register/thread     40.00     40.00     40.00
+    Shared Memory Configuration Size           Kbyte     32.77     32.77     32.77
+    Driver Shared Memory Per Block       Kbyte/block      1.02      1.02      1.02
+    Dynamic Shared Memory Per Block       byte/block      0.00      0.00      0.00
+    Static Shared Memory Per Block        byte/block      0.00      0.00      0.00
+    # SMs                                         SM     36.00     36.00     36.00
+    Stack Size                                        1,024.00  1,024.00  1,024.00
+    Threads                                   thread 32,768.00 32,768.00 32,768.00
+    # TPCs                                               18.00     18.00     18.00
+    Uses Green Context                                    0.00      0.00      0.00
+    Waves Per SM                                         37.93     37.93     37.93
+    -------------------------------- --------------- --------- --------- ---------
+
+    Section: Memory Workload Analysis
+    --------------------------------------- ----------- ------- ------- -------
+    Metric Name                             Metric Unit Minimum Maximum Average
+    --------------------------------------- ----------- ------- ------- -------
+    Local Memory Spilling Requests                         0.00    0.00    0.00
+    Local Memory Spilling Request Overhead            %    0.00    0.00    0.00
+    L2 Sector Promotion Misses                        %    0.00    0.00    0.00
+    Shared Memory Spilling Requests                        0.00    0.00    0.00
+    Shared Memory Spilling Request Overhead           %    0.00    0.00    0.00
+    Memory Throughput                           Gbyte/s   65.37   65.37   65.37
+    Mem Busy                                          %   46.26   46.26   46.26
+    Max Bandwidth                                     %   92.09   92.09   92.09
+    L1/TEX Hit Rate                                   %   96.20   96.20   96.20
+    L2 Persisting Size                            Mbyte    6.29    6.29    6.29
+    L2 Compression Success Rate                       %    0.00    0.00    0.00
+    L2 Compression Ratio                                   0.00    0.00    0.00
+    L2 Compression Input Sectors                 sector    0.00    0.00    0.00
+    L2 Hit Rate                                       %   87.83   87.83   87.83
+    Mem Pipes Busy                                    %   92.09   92.09   92.09
+    --------------------------------------- ----------- ------- ------- -------
+
+    Section: Occupancy
+    ------------------------------- ----------- ------- ------- -------
+    Metric Name                     Metric Unit Minimum Maximum Average
+    ------------------------------- ----------- ------- ------- -------
+    Max Active Clusters                 cluster    0.00    0.00    0.00
+    Max Cluster Size                      block    8.00    8.00    8.00
+    Overall GPU Occupancy                     %    0.00    0.00    0.00
+    Cluster Occupancy                         %    0.00    0.00    0.00
+    Block Limit Barriers                  block   24.00   24.00   24.00
+    Block Limit SM                        block   24.00   24.00   24.00
+    Block Limit Registers                 block   48.00   48.00   48.00
+    Block Limit Shared Mem                block   32.00   32.00   32.00
+    Block Limit Warps                     block   48.00   48.00   48.00
+    Theoretical Active Warps per SM        warp   24.00   24.00   24.00
+    Theoretical Occupancy                     %   50.00   50.00   50.00
+    Achieved Occupancy                        %   49.45   49.45   49.45
+    Achieved Active Warps Per SM           warp   23.74   23.74   23.74
+    ------------------------------- ----------- ------- ------- -------
+
+    Section: PM Sampling
+    ------------------------- ----------- ------- ------- -------
+    Metric Name               Metric Unit Minimum Maximum Average
+    ------------------------- ----------- ------- ------- -------
+    Maximum Buffer Size             Mbyte   33.16   33.16   33.16
+    Maximum Sampling Interval          us    3.00    3.00    3.00
+    # Pass Groups                            2.00    2.00    2.00
+    ------------------------- ----------- ------- ------- -------
+
+    Section: Scheduler Statistics
+    ---------------------------- ----------- ------- ------- -------
+    Metric Name                  Metric Unit Minimum Maximum Average
+    ---------------------------- ----------- ------- ------- -------
+    One or More Eligible                   %   27.80   27.80   27.80
+    Issued Warp Per Scheduler                   0.28    0.28    0.28
+    No Eligible                            %   72.20   72.20   72.20
+    Active Warps Per Scheduler          warp    5.94    5.94    5.94
+    Eligible Warps Per Scheduler        warp    0.77    0.77    0.77
+    ---------------------------- ----------- ------- ------- -------
+
+    Section: Source Counters
+    ------------------------- ----------- ------------ ------------ ------------
+    Metric Name               Metric Unit      Minimum      Maximum      Average
+    ------------------------- ----------- ------------ ------------ ------------
+    Branch Instructions Ratio           %         0.02         0.02         0.02
+    Branch Instructions              inst 7,110,656.00 7,110,656.00 7,110,656.00
+    Branch Efficiency                   %       100.00       100.00       100.00
+    Avg. Divergent Branches      branches         0.00         0.00         0.00
+    ------------------------- ----------- ------------ ------------ ------------
+
+    Section: Tile Statistics
+    ------------------------------- ----------- --------- --------- ---------
+    Metric Name                     Metric Unit   Minimum   Maximum   Average
+    ------------------------------- ----------- --------- --------- ---------
+    Block Size (Chosen by Compiler)                  1.00      1.00      1.00
+    Cluster Size                                     0.00      0.00      0.00
+    #Thread Blocks Launched                     32,768.00 32,768.00 32,768.00
+    #Tile Blocks Specified                      32,768.00 32,768.00 32,768.00
+    Blocks as Clusters                               0.00      0.00      0.00
+    ------------------------------- ----------- --------- --------- ---------
+
+    Section: Warp State Statistics
+    ---------------------------------------- ----------- ------- ------- -------
+    Metric Name                              Metric Unit Minimum Maximum Average
+    ---------------------------------------- ----------- ------- ------- -------
+    Warp Cycles Per Issued Instruction             cycle   21.37   21.37   21.37
+    Warp Cycles Per Executed Instruction           cycle   21.37   21.37   21.37
+    Avg. Active Threads Per Warp                            1.00    1.00    1.00
+    Avg. Not Predicated Off Threads Per Warp                1.00    1.00    1.00
+    ---------------------------------------- ----------- ------- ------- -------
+
+  Note: The shown averages are calculated as the arithmetic mean of the metric values after the evaluation of the    
+  metrics for each individual kernel launch.                                                                         
+  If aggregating across varying launch configurations (like shared memory, cache config settings), the arithmetic    
+  mean can be misleading and looking at the individual results is recommended instead.                               
+
