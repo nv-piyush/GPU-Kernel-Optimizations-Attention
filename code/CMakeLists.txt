@@ -24,8 +24,9 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} \
 add_executable(attention_baseline attention_baseline.cu)
 add_executable(attention_tiled     attention_tiled.cu)
 add_executable(attention_fused     attention_fused.cu)
+add_executable(attention_warp      attention_warp.cu)
 
-foreach(target attention_baseline attention_tiled attention_fused)
+foreach(target attention_baseline attention_tiled attention_fused attention_warp)
     target_compile_options(${target} PRIVATE
         $<$<COMPILE_LANGUAGE:CUDA>:--generate-line-info>
     )
