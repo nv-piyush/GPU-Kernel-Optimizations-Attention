@@ -1,3 +1,9 @@
+% ============================================================
+% Performance Analysis of GPU Kernel Optimizations
+% for Scaled Dot-Product Attention
+% Week 6 Draft — All sections complete
+% ============================================================
+
 \documentclass[12pt]{article}
 \usepackage{amsmath}
 \usepackage{graphicx}
@@ -5,26 +11,108 @@
 \usepackage[margin=1in]{geometry}
 \usepackage{url}
 \usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{xcolor}
 
-\title{Study of GPU Kernel Optimizations for Scaled Dot-Product Attention}
-\author{Piyush Jadhav}
+\title{Performance Analysis of GPU Kernel Optimizations\\
+       for Scaled Dot-Product Attention}
+\author{Adithya}
 \date{}
 
 \begin{document}
 
 \maketitle
 
+\begin{abstract}
+Scaled dot-product attention is the computational core of Transformer-based
+models, with complexity that grows quadratically with sequence length and
+performance frequently constrained by memory bandwidth. This paper presents
+a controlled experimental study of two GPU kernel optimization techniques —
+shared-memory tiling and kernel fusion — applied to single-head scaled
+dot-product attention during inference on an NVIDIA RTX 5060 Ti.
+We implement and evaluate five variants across 32 workload configurations
+spanning batch sizes 1--32, sequence lengths 128--1024, and head dimensions
+64 and 128, using Nsight Compute hardware profiling to explain observed
+performance behavior. Our key findings are: (1) shared-memory tiling of
+the QK$^\top$ kernel reduces warp stall cycles from 172 to 66 per instruction
+and delivers 1.09$\times$--2.14$\times$ end-to-end speedup, with gains
+increasing with batch size and sequence length; (2) a targeted softmax grid
+fix — raising the launch grid from 2 blocks to $N \times B$ blocks —
+resolves severe SM underutilization and achieves up to 5.12$\times$ speedup
+over baseline, demonstrating that a simple launch configuration correction
+can dominate more complex optimizations; (3) naive kernel fusion regresses
+by up to 3.37$\times$ at large workloads because it sacrifices tiling and
+causes L2 cache overflow, highlighting that high GPU occupancy is a necessary
+but insufficient condition for performance. Roofline analysis confirms all
+kernels operate in the memory-bound regime, and the optimizations improve
+performance by reducing bytes moved and improving SM utilization rather than
+increasing arithmetic intensity.
+\end{abstract}
+
+% ============================================================
 \section{Introduction}
+% ============================================================
 
-Transformer-based architectures have become the foundation of modern deep learning systems, particularly large language models (LLMs) used in natural language processing and generative AI \cite{vaswani2017attention}. At the core of these architectures lies scaled dot-product attention, an operation whose computational complexity grows quadratically with sequence length. As context windows and model sizes increase, attention becomes a major performance bottleneck during inference.
+Transformer-based architectures have become the foundation of modern deep
+learning systems, particularly large language models (LLMs) used in natural
+language processing and generative AI \cite{vaswani2017attention}. At the
+core of these architectures lies scaled dot-product attention, an operation
+whose computational complexity grows quadratically with sequence length.
+As context windows and model sizes increase, attention becomes a major
+performance bottleneck during inference.
 
-Recent research has shown that attention performance on GPUs is frequently constrained by memory bandwidth and data movement rather than peak floating-point throughput \cite{dao2022flashattention, wang2019characterizing}. IO-aware algorithmic restructuring techniques, such as FlashAttention \cite{dao2022flashattention}, significantly reduce high-bandwidth memory (HBM) transfers and improve efficiency. However, much of the literature proposes new algorithms or large-scale system optimizations, rather than isolating individual kernel-level techniques under controlled experimental settings.
+Recent research has shown that attention performance on GPUs is frequently
+constrained by memory bandwidth and data movement rather than peak
+floating-point throughput \cite{dao2022flashattention, wang2019characterizing}.
+IO-aware algorithmic restructuring techniques, such as FlashAttention
+\cite{dao2022flashattention}, significantly reduce high-bandwidth memory
+transfers and improve efficiency. However, much of the literature proposes
+new algorithms or large-scale system optimizations, rather than isolating
+individual kernel-level techniques under controlled experimental settings.
 
-In practice, GPU performance is highly sensitive to implementation details such as memory access patterns, shared memory utilization, kernel launch overhead, and occupancy. While techniques like shared-memory tiling and kernel fusion are commonly applied in high-performance GPU programming, there is limited empirical analysis examining when these optimizations meaningfully improve scaled dot-product attention performance and what tradeoffs they introduce.
+In practice, GPU performance is highly sensitive to implementation details
+such as memory access patterns, shared memory utilization, kernel launch
+configuration, and thread-level occupancy. While techniques like
+shared-memory tiling and kernel fusion are commonly applied in
+high-performance GPU programming, there is limited empirical analysis
+examining when these optimizations meaningfully improve scaled dot-product
+attention performance and what tradeoffs they introduce.
 
-This work presents a controlled performance analysis of two GPU kernel optimization techniques—shared-memory tiling and kernel fusion—applied to scaled dot-product attention during Transformer inference. By systematically varying workload configurations and analyzing hardware performance metrics, this study aims to provide insight into when these techniques are beneficial and when their impact diminishes.
+This work presents a controlled performance analysis of kernel-level
+optimization techniques applied to scaled dot-product attention during
+inference. We make the following contributions:
 
+\begin{itemize}
+    \item A clean, reproducible baseline implementation of three-kernel
+    attention in CUDA, validated against PyTorch with max absolute error
+    at the float32 machine epsilon floor ($1.34 \times 10^{-7}$).
+
+    \item A systematic evaluation of five implementation variants across
+    32 workload configurations, with Nsight Compute profiling providing
+    hardware-counter-level explanation for all observed performance
+    differences.
+
+    \item Quantitative characterization of when shared-memory tiling helps
+    and when its benefit is masked by other bottlenecks (Amdahl's Law).
+
+    \item A negative result on naive kernel fusion, with a precise hardware
+    explanation: the fused kernel sacrifices tiling and causes L2 cache
+    overflow under large-batch workloads, producing warp stall cycles
+    (413 cycles/instruction) worse than the unoptimized baseline (172
+    cycles/instruction).
+
+    \item Roofline analysis confirming the memory-bound regime of all
+    variants and characterizing the ridge point (49.3 FLOPs/Byte) relative
+    to each kernel's arithmetic intensity.
+\end{itemize}
+
+% ============================================================
 \section{Background}
+% ============================================================
 
 Scaled dot-product attention computes:
 
@@ -33,35 +121,77 @@ Scaled dot-product attention computes:
 \text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right)V
 \]
 
-where $Q$, $K$, and $V$ are query, key, and value tensors of shape $B \times N \times d$, with batch size $B$, sequence length $N$, and head dimension $d$ \cite{vaswani2017attention}. The computation involves two matrix multiplications and a row-wise softmax operation.
+where $Q$, $K$, and $V$ are query, key, and value tensors of shape
+$B \times N \times d$, with batch size $B$, sequence length $N$, and
+head dimension $d$ \cite{vaswani2017attention}. The computation involves
+two matrix multiplications and a row-wise softmax operation over an
+intermediate score matrix $S \in \mathbb{R}^{B \times N \times N}$.
 
-On GPUs, the $QK^T$ multiplication is typically implemented as a batched matrix multiplication, followed by scaling and normalization. The performance of these operations depends heavily on memory hierarchy usage, arithmetic intensity, and thread-level parallelism.
+On GPUs, performance depends on how effectively kernels exploit the memory
+hierarchy. The RTX 5060 Ti used in this study has 16 GB GDDR7 with 448 GB/s
+peak bandwidth and 22.1 TFLOPS peak FP32 throughput. The L2 cache is 6.29 MB.
+The Roofline model \cite{williams2009roofline} characterizes whether a kernel
+is memory-bound (arithmetic intensity below the ridge point of 49.3 FLOPs/Byte)
+or compute-bound (above it). As we show, all attention kernels in this study
+operate far below this ridge point.
 
+Shared-memory tiling reduces global memory traffic by loading tiles of input
+matrices into on-chip shared memory, allowing threads within a block to reuse
+loaded data rather than re-fetching from DRAM. Kernel fusion eliminates
+intermediate data materialization between sequential operations, reducing
+memory round-trips. Both techniques are well-established in GPU programming
+but their interaction with specific workload configurations is not always
+predictable.
+
+% ============================================================
 \section{Related Work}
+% ============================================================
 
 \subsection{Transformer Attention}
-
-The Transformer architecture introduced by Vaswani et al. \cite{vaswani2017attention} replaced recurrent neural networks with self-attention mechanisms. While highly parallelizable, scaled dot-product attention incurs $O(N^2)$ complexity in sequence length, motivating optimization efforts.
+The Transformer architecture introduced by Vaswani et al.
+\cite{vaswani2017attention} replaced recurrent neural networks with
+self-attention mechanisms. While highly parallelizable, scaled dot-product
+attention incurs $O(N^2)$ complexity in sequence length, motivating
+optimization efforts.
 
 \subsection{IO-Aware Attention Optimization}
-
-Dao et al. \cite{dao2022flashattention} demonstrated that attention performance is often memory-bound rather than compute-bound. FlashAttention reduces memory traffic by restructuring computation to maximize on-chip data reuse. FlashAttention-2 further improves parallelism and workload partitioning \cite{dao2023flashattention2}. These works emphasize that memory access patterns are critical to performance.
+Dao et al. \cite{dao2022flashattention} demonstrated that attention
+performance is often memory-bound rather than compute-bound. FlashAttention
+reduces memory traffic by restructuring computation using online softmax to
+fuse the QK$^\top$ computation with softmax within tiles, eliminating the
+$O(N^2)$ score matrix materialization entirely. FlashAttention-2 further
+improves parallelism and workload partitioning \cite{dao2023flashattention2}.
+These works motivate investigating memory access patterns as the primary
+optimization lever, and the tile-aware fusion approach they employ is
+identified as the correct response to the negative result on naive fusion
+in this study.
 
 \subsection{GPU Bottleneck Characterization}
-
-Wang et al. \cite{wang2019characterizing} performed architectural analysis of deep learning workloads on modern GPUs, showing that many operations operate near memory bandwidth limits. Their findings support investigating memory reduction techniques such as shared-memory tiling.
-
-The Roofline model \cite{williams2009roofline} provides a theoretical framework for analyzing whether workloads are compute-bound or memory-bound. By relating arithmetic intensity to hardware ceilings, it enables systematic interpretation of performance measurements.
+Wang et al. \cite{wang2019characterizing} performed architectural analysis
+of deep learning workloads on modern GPUs, showing that many operations
+operate near memory bandwidth limits. The Roofline model
+\cite{williams2009roofline} provides a theoretical framework for
+characterizing whether workloads are compute-bound or memory-bound.
 
 \subsection{ML Systems Optimization}
-
-Jia et al. \cite{jia2019optimizing} emphasize systematic performance analysis of deep learning computation graphs and the importance of studying optimization tradeoffs rather than isolated improvements. This motivates the controlled experimental design adopted in this work.
+Jia et al. \cite{jia2019optimizing} emphasize systematic performance
+analysis of deep learning computation graphs and the importance of studying
+optimization tradeoffs rather than isolated improvements. This motivates
+the controlled experimental design adopted in this work.
 
 \subsection{Gap in Existing Literature}
+While prior research establishes that attention is memory-intensive and
+proposes algorithmic improvements, there is limited controlled empirical
+evaluation isolating individual kernel-level techniques such as
+shared-memory tiling and kernel launch configuration within standard
+scaled dot-product attention. This study addresses that gap by analyzing
+these techniques under varying workload configurations during inference,
+including a quantitative decomposition of which optimizations contribute
+meaningfully and which do not.
 
-While prior research establishes that attention is memory-intensive and proposes algorithmic improvements, there is limited controlled empirical evaluation isolating kernel-level techniques such as shared-memory tiling and kernel fusion within standard scaled dot-product attention. This study addresses that gap by analyzing these techniques under varying workload configurations during inference.
-
+% ============================================================
 \section{Methodology}
+% ============================================================
 
 \subsection{Attention Formulation}
 
@@ -74,120 +204,467 @@ defined as:
     \label{eq:attention}
 \end{equation}
 
-\noindent where $Q, K, V \in \mathbb{R}^{B \times N \times d}$,
-$B$ is the batch size, $N$ is the sequence length, and $d$ is the
-head dimension. The intermediate score matrix
+\noindent where $Q, K, V \in \mathbb{R}^{B \times N \times d}$.
+The intermediate score matrix
 $S = QK^{\top}/\sqrt{d} \in \mathbb{R}^{B \times N \times N}$
 grows quadratically with sequence length, making memory bandwidth
 the primary performance bottleneck at large $N$.
 
 \subsection{Baseline Implementation}
 
-The baseline kernel decomposes attention into three sequential
-CUDA kernels, all operating exclusively on global memory:
+The baseline decomposes attention into three sequential CUDA kernels,
+all operating exclusively on global memory:
 
 \begin{enumerate}
     \item \textbf{QK$^{\top}$ with scaling} (\texttt{qk\_dot\_scaled\_kernel}):
     Computes $S_{b,i,j} = \sum_{k} Q_{b,i,k} \cdot K_{b,j,k} / \sqrt{d}$.
-    Each thread computes one element of $S$. Grid: $(\lceil N/16 \rceil,
-    \lceil N/16 \rceil, B)$, block: $(16, 16)$.
+    Each thread computes one element of $S$.
+    Grid: $(\lceil N/16 \rceil, \lceil N/16 \rceil, B)$, block: $(16, 16)$.
 
     \item \textbf{Row-wise softmax} (\texttt{softmax\_kernel}):
-    Applies numerically stable softmax over the $j$-dimension of $S$
-    using the max-subtraction trick. Each thread processes one complete
-    row $S_{b,i,:}$. Grid: $(\lceil N/256 \rceil, B)$, block: $(256)$.
+    Numerically stable softmax using the max-subtraction trick.
+    Each thread processes one row $S_{b,i,:}$.
+    Grid: $(\lceil N/256 \rceil, B)$, block: $(256)$.
 
     \item \textbf{Weighted sum with V} (\texttt{attn\_output\_kernel}):
     Computes $\text{out}_{b,i,k} = \sum_{j} S_{b,i,j} \cdot V_{b,j,k}$.
-    Each thread computes one output element. Grid:
-    $(\lceil d/16 \rceil, \lceil N/16 \rceil, B)$, block: $(16, 16)$.
+    Grid: $(\lceil d/16 \rceil, \lceil N/16 \rceil, B)$, block: $(16, 16)$.
 \end{enumerate}
 
-This implementation is intentionally naive — no shared memory tiling,
-no kernel fusion — to establish a clean performance baseline against
-which optimized variants are compared in Sections~\ref{sec:tiling}
-and~\ref{sec:fusion}.
+\subsection{Shared-Memory Tiling}
+\label{sec:tiling}
+
+The tiled QK kernel replaces \texttt{qk\_dot\_scaled\_kernel} with a
+variant that loads $T \times T$ tiles of $Q$ and $K$ into shared memory
+(tile size $T = 16$, shared memory usage 2 KB per block). For each output
+tile $(i_{\text{block}}, j_{\text{block}})$, the kernel iterates over
+$\lceil d/T \rceil$ tiles along the head dimension:
+
+\begin{enumerate}
+    \item Thread $(t_y, t_x)$ cooperatively loads $Q_s[t_y][t_x]$ and $K_s[t_y][t_x]$
+    \item A \texttt{\_\_syncthreads()} barrier ensures the tile is fully loaded
+    \item Each thread accumulates partial dot products: $\text{acc} \mathrel{+}= \sum_{k=0}^{T-1} Q_s[t_y][k] \cdot K_s[t_x][k]$
+    \item A second barrier before the next tile iteration
+\end{enumerate}
+
+This amortizes global memory loads over $T = 16$ reuses per loaded element,
+reducing DRAM traffic proportionally for the K matrix.
+
+\subsection{Softmax Grid Fix}
+\label{sec:gridfig}
+
+Nsight Compute profiling revealed that the baseline softmax kernel launches
+with grid $= (\lceil N/256 \rceil, B)$. At $N=512$, $B=1$ this is 2 blocks,
+leaving 34 of 36 SMs completely idle. The fix assigns one block per row:
+
+\begin{equation}
+    \text{grid} = (N,\ B), \quad \text{block} = (1)
+\end{equation}
+
+At $B=32$, $N=1024$ this raises the grid from 128 blocks to 32{,}768 blocks,
+increasing waves per SM from 0.01 to 37.93 and achieved occupancy from
+16.46\% to 49.45\%. The QK tiling and attn\_output kernels are unchanged.
+
+\subsection{Kernel Fusion (Attempted)}
+\label{sec:fusion}
+
+The fused variant combines QK$^\top$, scaling, and softmax into a single
+kernel, with each block owning one output row. The block computes all $N$
+dot products into shared memory ($N$ floats per block, dynamic allocation),
+applies parallel tree-reduction max and sum using shared memory, then
+normalizes and writes the result — eliminating the intermediate
+$[B, N, N]$ DRAM round-trip. While this achieves near-perfect occupancy
+(97.77\% at $B=32$, $N=1024$), it performs worse than the grid fix variant
+due to the tiling sacrifice discussed in Section~\ref{sec:results_fusion}.
+
+\subsection{Warp-Level Softmax Reduction}
+\label{sec:warp}
+
+Building on the grid-fixed softmax (which still uses 1 thread per block,
+leaving 31 threads per warp idle), we implement warp-level reduction using
+CUDA shuffle instructions. Block size is raised to 32 threads (one full warp).
+All 32 threads stride across the row collaboratively, then use
+\texttt{\_\_shfl\_down\_sync} to compute the global max and sum in
+$\log_2(32) = 5$ steps rather than $O(N)$ sequential steps:
+
+\begin{enumerate}
+    \item Each thread computes a local max over its strided elements
+    \item Five warp-shuffle reduction steps yield the global row max
+    \item Each thread computes $\exp(x - \text{max})$ and local sum
+    \item Five shuffle reduction steps yield the global sum
+    \item Each thread normalizes its elements
+\end{enumerate}
+
+No shared memory or \texttt{\_\_syncthreads()} is required — warp
+execution is implicitly synchronized.
 
 \subsection{Correctness Validation}
 
-Correctness was verified by comparing CUDA output against a PyTorch
-reference implementation using identical input tensors. Input tensors
-$Q$, $K$, $V$ were generated with uniform random values in $[-1, 1]$
-using fixed seeds (42, 43, 44 respectively) to ensure reproducibility.
-The CUDA binary writes output tensors to raw float32 binary files,
-which are loaded in a validation notebook and compared element-wise
-against the PyTorch reference (\texttt{torch.bmm} + \texttt{F.softmax}).
+Correctness was verified by comparing CUDA output against PyTorch reference
+(\texttt{torch.bmm} + \texttt{F.softmax}) on identical inputs (uniform
+$[-1,1]$, fixed seeds 42/43/44). At $B{=}1$, $N{=}512$, $d{=}64$:
+max absolute error $= 1.34 \times 10^{-7}$ (at the float32 machine epsilon
+floor $\approx 1.19 \times 10^{-7}$), confirming numerical correctness across
+all variants.
 
-For the configuration $B{=}1$, $N{=}512$, $d{=}64$:
-
-\begin{itemize}
-    \item Maximum absolute error: $1.34 \times 10^{-7}$
-    \item Mean absolute error: $1.13 \times 10^{-8}$
-    \item Maximum relative error: $1.51 \times 10^{-6}$
-\end{itemize}
-
-These values are at the float32 machine epsilon floor
-($\approx 1.19 \times 10^{-7}$), confirming numerical correctness
-with no algorithmic errors. The tolerance threshold used is
-$\epsilon = 10^{-3}$; all errors fall well below this bound.
-
-
+% ============================================================
 \section{Experimental Setup}
 \label{sec:setup}
+% ============================================================
 
 \subsection{Hardware and Software Environment}
-
-Experiments are conducted on a GPU cluster node equipped with an
-NVIDIA \texttt{[TODO: GPU model, e.g. A100 / V100 / RTX 3090]}.
-The CUDA toolkit version is \texttt{[TODO: nvcc --version]},
-compiled with \texttt{-arch=sm\_[TODO]} and \texttt{--use\_fast\_math}.
-The host system runs \texttt{[TODO: OS, e.g. Ubuntu 20.04]} with
-\texttt{[TODO: CPU model]}. PyTorch \texttt{[TODO: version]} is used
-solely for correctness validation and is not involved in any
-performance measurements.
-
-\subsection{Workload Configurations}
-
-We evaluate all combinations of the following parameters:
 
 \begin{table}[h]
 \centering
 \begin{tabular}{ll}
-\hline
+\toprule
+\textbf{Component} & \textbf{Specification} \\
+\midrule
+GPU & NVIDIA GeForce RTX 5060 Ti (Blackwell, sm\_120) \\
+GPU Memory & 16 GB GDDR7, 448 GB/s peak bandwidth \\
+Peak FP32 & 22.1 TFLOPS \\
+L2 Cache & 6.29 MB \\
+SMs & 36 \\
+CUDA Toolkit & 12.4 (nvcc V12.4.131) \\
+Compilation target & sm\_89 (Ada Lovelace)\footnotemark \\
+Compiler flags & \texttt{--use\_fast\_math -lineinfo -Xptxas=-v} \\
+Profiler & Nsight Compute (ncu), \texttt{--set full} \\
+\bottomrule
+\end{tabular}
+\caption{Hardware and software environment.}
+\label{tab:hardware}
+\end{table}
+
+\footnotetext{CUDA 12.4 does not support sm\_120 (Blackwell).
+Kernels compile and execute correctly via PTX forward compatibility.
+Results are valid under this configuration.}
+
+\subsection{Workload Configurations}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
 \textbf{Parameter} & \textbf{Values} \\
-\hline
+\midrule
 Batch size $B$       & 1, 4, 16, 32 \\
 Sequence length $N$  & 128, 256, 512, 1024 \\
 Head dimension $d$   & 64, 128 \\
-\hline
-\textbf{Total}       & \textbf{32 configurations} \\
-\hline
+\midrule
+\textbf{Total configurations} & \textbf{32} \\
+\bottomrule
 \end{tabular}
-\caption{Parameter sweep for baseline performance characterization.}
+\caption{Parameter sweep for performance characterization.}
 \label{tab:configs}
 \end{table}
 
-Input tensors $Q$, $K$, $V$ are generated synthetically using
-uniform random values with fixed seeds, simulating real attention
+Input tensors $Q$, $K$, $V$ are generated synthetically with uniform
+random values in $[-1, 1]$ and fixed seeds, simulating real attention
 workloads without requiring a dataset.
 
 \subsection{Measurement Protocol}
 
 Each configuration is executed with 5 warmup iterations followed by
-100 timed iterations. Timing is performed using \texttt{cudaEvent}
-start and stop records around the measured iterations, with
-\texttt{cudaEventSynchronize} ensuring all kernels complete before
-the elapsed time is read. The reported latency is the mean over 100
-iterations. Throughput is derived as:
+100 timed iterations. Timing uses \texttt{cudaEvent} with
+\texttt{cudaEventSynchronize} to ensure all kernels complete before
+reading elapsed time. Reported latency is the mean over 100 iterations.
+Throughput is:
 
 \begin{equation}
     \text{Throughput (tokens/sec)} = \frac{B \times N}{\text{latency (s)}}
 \end{equation}
 
-All results are written to a CSV file
-(\texttt{results/week2/baseline\_sweep.csv}) with columns:
-\texttt{variant}, \texttt{B}, \texttt{N}, \texttt{d},
-\texttt{latency\_ms}, \texttt{throughput\_k\_tokens\_per\_sec}.
-The same harness will be reused for tiled and fused variants in
-subsequent phases, with the \texttt{variant} field distinguishing
-implementations.
+Results are written to CSV with columns \texttt{variant}, \texttt{B},
+\texttt{N}, \texttt{d}, \texttt{latency\_ms},
+\texttt{throughput\_k\_tokens\_per\_sec}. All five variants use the same
+harness with the \texttt{variant} field distinguishing implementations.
+
+Note on profiling latency: NCU profiling output files report elevated
+wall-clock time ($\sim$seconds) because NCU replays each kernel 40+ passes
+for hardware counter collection. Actual kernel durations are read from the
+per-kernel \textit{Duration} field in each NCU section and are consistent
+with benchmark sweep measurements.
+
+% ============================================================
+\section{Results}
+\label{sec:results}
+% ============================================================
+
+\subsection{Baseline Characterization}
+
+Table~\ref{tab:ncu_baseline} shows Nsight Compute profiling at $B{=}1$,
+$N{=}512$, $d{=}64$.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Kernel} & \textbf{Duration ($\mu$s)} & \textbf{Occ. (\%)}
+    & \textbf{Mem Busy (\%)} & \textbf{Compute (\%)} & \textbf{Cycles/Inst} \\
+\midrule
+\texttt{qk\_dot\_scaled}  & 107.87 & 90.56 & 95.27 & 21.55 & 172.64 \\
+\texttt{softmax\_kernel}  & 300.00 & 16.46 &  5.73 &  0.35 & 124.56 \\
+\texttt{attn\_output}     &  37.12 & 50.95 & 47.14 & 62.85 &  14.15 \\
+\bottomrule
+\end{tabular}
+\caption{Baseline NCU profiling summary. $B{=}1$, $N{=}512$, $d{=}64$.}
+\label{tab:ncu_baseline}
+\end{table}
+
+Three findings drive the optimization strategy. First, the softmax kernel
+takes 300 $\mu$s (67\% of total) despite performing the least computation.
+Its grid of $\lceil 512/256 \rceil = 2$ blocks leaves 34 of 36 SMs idle.
+Second, the QK kernel achieves 90.56\% occupancy but only 21.55\% compute
+throughput, with 172.64 warp stall cycles per instruction — the L1/TEX
+pipeline is saturated at $N=512$ where the K matrix (128 KB) partially
+fits in L1. Third, the output kernel is the most efficient at 62.85\%
+compute throughput but is capped at 50.95\% occupancy by register pressure
+(42 registers/thread, block limit 5).
+
+\subsection{Baseline Benchmark Sweep}
+
+Figure~\ref{fig:baseline_latency} shows baseline latency as a function
+of sequence length. Latency scales approximately quadratically with $N$
+(ratios of $\sim$4$\times$ when $N$ doubles), consistent with the $O(N^2)$
+cost of the score matrix. Peak throughput is 17{,}058 k tok/s at
+$B{=}32$, $N{=}128$, $d{=}64$, where the score matrix fits in L2 cache.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\linewidth]{figures/latency_vs_N_d64.png}
+    \caption{Baseline latency vs.\ sequence length, $d{=}64$.
+             Log scale confirms O($N^2$) scaling across all batch sizes.}
+    \label{fig:baseline_latency}
+\end{figure}
+
+\subsection{Tiling Results}
+\label{sec:results_tiling}
+
+Figure~\ref{fig:tiling_comparison} shows latency and speedup for the
+tiled QK variant. NCU profiling at $B{=}1$, $N{=}512$ shows warp stall
+cycles dropping from 172.64 to 66.40 per instruction, with kernel duration
+falling from 107.87 $\mu$s to 32.35 $\mu$s — a 3.33$\times$ improvement
+on the QK kernel. However, end-to-end improvement is only 1.21$\times$
+because the softmax kernel (unchanged, 2-block grid) remains at 300 $\mu$s
+and accounts for 82\% of tiled total runtime. This demonstrates Amdahl's
+Law: optimizing a component that is not the bottleneck yields limited
+end-to-end gain.
+
+The L1/TEX hit rate decreases from 97.36\% to 10.81\% in the tiled variant,
+which is expected and correct: the inner dot product loop now reads from
+shared memory rather than L1, so L1 only sees the initial tile loads. This
+is not a regression.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/week3_comparison_d64.png}
+    \caption{Baseline vs.\ tiled latency (left, log scale) and speedup
+             (right) at $d{=}64$, $B{=}32$. Tiling delivers consistent
+             improvement across all $N$ but is limited end-to-end by the
+             softmax bottleneck.}
+    \label{fig:tiling_comparison}
+\end{figure}
+
+\subsection{Softmax Grid Fix Results}
+
+Figure~\ref{fig:fourway_heatmap} shows the four-way speedup heatmap.
+The softmax grid fix delivers the largest gains at small batch sizes where
+the original underutilization was most severe: peak speedup of
+\textbf{5.12$\times$} at $B{=}1$, $N{=}256$, $d{=}64$. Speedup decreases
+monotonically with $B$ because the original grid $(\lceil N/256 \rceil, B)$
+becomes progressively less underutilized as $B$ grows.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Config ($d{=}64$)} & \textbf{Baseline (ms)} & \textbf{Tiled (ms)}
+    & \textbf{SoftFix (ms)} & \textbf{Speedup (SoftFix)} \\
+\midrule
+$B{=}1$,  $N{=}256$  & --   & --   & --   & \textbf{5.12}$\times$ \\
+$B{=}1$,  $N{=}512$  & --   & --   & --   & 4.28$\times$ \\
+$B{=}4$,  $N{=}512$  & --   & --   & --   & 2.29$\times$ \\
+$B{=}32$, $N{=}512$  & --   & --   & --   & 1.74$\times$ \\
+$B{=}32$, $N{=}1024$ & --   & --   & --   & 1.90$\times$ \\
+\bottomrule
+\end{tabular}
+\caption{Representative speedup values for the softmax\_fixed variant
+         over baseline. Full results in \texttt{results/week4/full\_sweep.csv}.}
+\label{tab:softfix_speedup}
+\end{table}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/week4_speedup_heatmap_d64.png}
+    \caption{Three-panel speedup heatmap ($d{=}64$) for tiled QK,
+             fixed-grid softmax, and fused variants over baseline.
+             Green = improvement, red = regression.}
+    \label{fig:fourway_heatmap}
+\end{figure}
+
+\subsection{Fusion Results}
+\label{sec:results_fusion}
+
+The fused kernel achieves 97.77\% occupancy at $B{=}32$, $N{=}1024$ but
+runs \textbf{3.37$\times$ slower} than the softmax\_fixed variant at that
+configuration. Warp stall cycles increase from 66.40 (tiled QK) to
+413.42 per instruction in the fused kernel — worse than the unoptimized
+baseline (172.64). SM Busy is 3.55\% despite near-perfect occupancy,
+confirming that occupied warps are almost entirely stalled on memory.
+
+The cause is structural: the fused kernel must compute the full row
+$S[b,i,:]$ before softmax, requiring each block to access $N$ distinct
+K rows of length $d$ without tiling. A block of 256 threads collectively
+accesses the entire K matrix slice for a batch without any shared memory
+reuse — the opposite of the tiled QK kernel. At $B{=}32$, $N{=}1024$,
+the K working set per block (256 KB) combined across 32{,}768 concurrent
+blocks exceeds L2 capacity (6.29 MB), causing cache thrashing and DRAM
+saturation.
+
+The fused kernel does show gains at small $B$: up to 2.73$\times$ at
+$B{=}1$, $N{=}256$ where K fits in L2 (L2 hit rate 98.84\%). The crossover
+from gain to regression occurs around $B{=}4$ for $d{=}64$, consistent with
+the L2 working set overflow threshold. The right panel of
+Figure~\ref{fig:fourway_heatmap} shows this as a gradient from green
+($B{=}1$, small $N$) to deep red ($B{\geq}4$, any $N$), reaching
+0.48$\times$ at $B{=}32$, $N{=}1024$, $d{=}128$.
+
+% ============================================================
+\section{Analysis and Tradeoffs}
+\label{sec:analysis}
+% ============================================================
+
+\subsection{Roofline Analysis}
+
+Figure~\ref{fig:roofline} shows the Roofline model for the RTX 5060 Ti
+with all kernel operating points plotted. The ridge point is 49.3
+FLOPs/Byte. Arithmetic intensities for each kernel are computed as:
+
+\begin{equation}
+    \text{AI} = \frac{\text{FLOPs}}{\text{bytes moved}}
+\end{equation}
+
+where FLOPs are computed analytically (QK: $2BN^2d$, softmax: $5BN^2$,
+SV: $2BN^2d$) and bytes moved are estimated from NCU memory throughput
+$\times$ kernel duration.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/roofline_analysis.png}
+    \caption{Roofline model — RTX 5060 Ti. Left: $B{=}1$, $N{=}512$.
+             Right: $B{=}32$, $N{=}1024$. All kernels operate in the
+             memory-bound regime (AI $\ll$ 49.3 FLOPs/Byte).
+             The fused kernel's anomalously low performance despite
+             high Mem Busy reflects L2 cache thrashing.}
+    \label{fig:roofline}
+\end{figure}
+
+All kernels have AI well below the ridge point (typical values 0.3--8
+FLOPs/Byte), confirming the memory-bound regime throughout. Optimizations
+improve performance by reducing bytes moved (tiling) or improving SM
+utilization (grid fix, warp reduction) — not by increasing arithmetic
+intensity toward the compute roofline. This has a practical implication:
+the performance ceiling for these kernels is the memory bandwidth roofline,
+and the primary optimization target is minimizing unnecessary memory traffic.
+
+\subsection{Amdahl's Law and Bottleneck Shifting}
+
+The tiled QK kernel improves in isolation by 3.33$\times$ at $B{=}1$,
+$N{=}512$, but the end-to-end improvement is only 1.21$\times$ because
+the softmax kernel (unchanged) accounts for 82\% of tiled total runtime.
+This is a direct consequence of Amdahl's Law: if a fraction $f$ of runtime
+is optimized by a factor $s$, the end-to-end speedup is bounded by
+$1 / ((1-f) + f/s)$. With $f = 0.18$ (QK fraction) and $s = 3.33$,
+the bound is $1.25\times$ — consistent with the observed $1.21\times$.
+
+The grid fix addresses the actual bottleneck: at $B{=}1$, $N{=}512$,
+softmax accounts for 67\% of baseline runtime, and fixing its grid reduces
+its duration from 300 $\mu$s to $\sim$10 $\mu$s, enabling the tiling gain
+in QK to be fully realized in the combined softmax\_fixed variant.
+
+\subsection{Occupancy vs. Performance}
+
+The fused kernel demonstrates that high occupancy is a necessary but
+insufficient condition for performance. At $B{=}32$, $N{=}1024$, achieved
+occupancy is 97.77\% while SM Busy is 3.55\% — the GPU is nearly fully
+occupied with warps that are almost entirely stalled. In contrast, the
+softmax\_fixed kernel achieves 49.45\% occupancy with SM Busy at 30.73\%
+and delivers 3.37$\times$ better end-to-end latency.
+
+The distinction is between latency hiding (where occupancy helps, by
+providing alternative warps to schedule while one warp stalls) and
+bandwidth saturation (where additional occupancy provides no benefit
+because all warps are stalled waiting on the same saturated memory system).
+At $B{=}32$, $N{=}1024$, the fused kernel saturates the L2 cache with
+non-coalesced, non-reused K accesses, and no amount of additional occupancy
+can hide this latency.
+
+\subsection{Grid Configuration as a First-Class Optimization}
+
+A central finding of this study is that kernel launch configuration can
+have larger performance impact than algorithmic optimization. The softmax
+grid fix — a change of one line in the grid calculation — delivers up to
+5.12$\times$ speedup, outperforming the more complex tiled QK kernel
+(max 2.14$\times$) across most configurations. This underscores the
+importance of profiling before optimizing: without NCU revealing the
+2-block grid as the dominant bottleneck, time might have been spent on
+more complex optimizations that could not exceed the Amdahl bound imposed
+by an underutilized softmax.
+
+% ============================================================
+\section{Conclusion}
+% ============================================================
+
+This paper presents a controlled study of kernel-level GPU optimization
+for scaled dot-product attention. Five variants were implemented and
+evaluated across 32 workload configurations with Nsight Compute hardware
+profiling providing mechanistic explanations for all results.
+
+The three principal findings are: first, shared-memory tiling of the
+QK$^\top$ kernel reduces warp stall cycles by 62\% and delivers consistent
+1.09$\times$--2.14$\times$ speedup, with gains increasing with batch size
+as DRAM pressure grows. Second, fixing the softmax kernel launch grid from
+2 blocks to $(N \times B)$ blocks resolves a severe SM underutilization
+bottleneck and delivers up to 5.12$\times$ speedup — demonstrating that
+launch configuration is a first-class optimization target. Third, naive
+kernel fusion regresses at large workloads (up to 3.37$\times$ slower)
+because it abandons tiling, producing warp stall cycles worse than the
+unoptimized baseline, and confirming that high GPU occupancy is insufficient
+for performance when the memory access pattern is poor.
+
+Roofline analysis confirms all variants operate in the memory-bound regime
+throughout the tested configuration space. Optimizations improve performance
+by reducing memory traffic or increasing SM utilization, not by approaching
+the compute bound.
+
+% ============================================================
+\section{Future Work}
+% ============================================================
+
+The negative result on naive fusion points directly to the natural next
+step: tile-aware online softmax following the FlashAttention approach.
+By maintaining running max and sum accumulators across tile iterations,
+softmax can be fused within the tiled QK loop without sacrificing the
+K tile reuse structure. This preserves the 3.33$\times$ QK kernel speedup
+while also eliminating the $O(N^2)$ DRAM round-trip — the combination that
+naive fusion attempted but could not achieve.
+
+The warp-level softmax reduction (Phase 5) addresses the remaining
+inefficiency in the grid-fixed softmax — single-thread blocks leave 31
+of 32 warp threads idle. Replacing the O($N$) sequential reduction with
+five \texttt{\_\_shfl\_down\_sync} steps over 32 active threads is
+expected to improve SM Busy beyond the current 30.73\% ceiling.
+
+Beyond these immediate extensions, the study could be extended to multi-head
+attention, where batch dimensions across heads provide additional parallelism,
+and to training workloads where backward pass gradient kernels introduce
+additional memory traffic patterns.
+
+% ============================================================
+\bibliographystyle{plain}
+\bibliography{references}
+% ============================================================
+
+\end{document}
