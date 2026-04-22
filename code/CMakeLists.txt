@@ -25,8 +25,10 @@ add_executable(attention_baseline attention_baseline.cu)
 add_executable(attention_tiled     attention_tiled.cu)
 add_executable(attention_fused     attention_fused.cu)
 add_executable(attention_warp      attention_warp.cu)
+add_executable(attention_best      attention_best.cu)
 
-foreach(target attention_baseline attention_tiled attention_fused attention_warp)
+foreach(target attention_baseline attention_tiled attention_fused
+                attention_warp attention_best)
     target_compile_options(${target} PRIVATE
         $<$<COMPILE_LANGUAGE:CUDA>:--generate-line-info>
     )
